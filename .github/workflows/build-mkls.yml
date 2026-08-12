@@ -111,14 +111,25 @@ jobs:
           if ($actualHash -ne $env:LZMA_SDK_SHA256) { throw "LZMA SDK checksum mismatch: $actualHash" }
           7z x "$env:RUNNER_TEMP\lzma-sdk.7z" "-o$env:RUNNER_TEMP\lzma-sdk" -y
           $sevenZip = Get-ChildItem "$env:RUNNER_TEMP\lzma-sdk" -Filter 7zr.exe -Recurse | Select-Object -First 1
-          $sfx = Get-ChildItem "$env:RUNNER_TEMP\lzma-sdk" -Filter 7zS2.sfx -Recurse | Select-Object -First 1
+          $stubBytes = [Convert]::FromBase64String((Get-Content build\mkls-sfx-stub.exe.gz.b64 -Raw))
+          [IO.File]::WriteAllBytes("$env:RUNNER_TEMP\mkls-sfx-stub.exe.gz", $stubBytes)
+          $inputStream = [IO.File]::OpenRead("$env:RUNNER_TEMP\mkls-sfx-stub.exe.gz")
+          $gzipStream = [IO.Compression.GZipStream]::new($inputStream, [IO.Compression.CompressionMode]::Decompress)
+          $outputStream = [IO.File]::Create("$env:RUNNER_TEMP\mkls-sfx-stub.exe")
+          try { $gzipStream.CopyTo($outputStream) }
+          finally {
+            $outputStream.Dispose()
+            $gzipStream.Dispose()
+            $inputStream.Dispose()
+          }
           New-Item -ItemType Directory -Force dist | Out-Null
           .\src\support\portable\build_mkls_single.ps1 `
             -ReleaseDirectory src\app\build\windows\x64\runner\Release `
             -SevenZipPath $sevenZip.FullName `
-            -SfxModulePath $sfx.FullName `
+            -SfxModulePath "$env:RUNNER_TEMP\mkls-sfx-stub.exe" `
             -OutputPath dist\mkLS-1.18.0-Windows-x64-Portable-Single-ReadableUI.exe `
-            -Version "1.18.0.60"
+            -Version "1.18.0.60" `
+            -SkipResourcePatch
           Get-FileHash dist\mkLS-1.18.0-Windows-x64-Portable-Single-ReadableUI.exe -Algorithm SHA256 | Format-List
 
       - name: Upload executable

@@ -14,7 +14,9 @@ param(
 
     [Parameter(Mandatory = $true)]
     [ValidatePattern('^\d+\.\d+\.\d+(\.\d+)?$')]
-    [string]$Version
+    [string]$Version,
+
+    [switch]$SkipResourcePatch
 )
 
 $ErrorActionPreference = 'Stop'
@@ -61,9 +63,11 @@ try {
     }
 
     Copy-Item -LiteralPath $sfxSource -Destination $sfxPath -Force
-    & node $patchScript $sfxPath $iconPath $Version
-    if ($LASTEXITCODE -ne 0) {
-        throw "無法設定單檔執行檔的圖示與版本資訊，結束代碼：$LASTEXITCODE"
+    if (-not $SkipResourcePatch) {
+        & node $patchScript $sfxPath $iconPath $Version
+        if ($LASTEXITCODE -ne 0) {
+            throw "無法設定單檔執行檔的圖示與版本資訊，結束代碼：$LASTEXITCODE"
+        }
     }
 
     $sfxConfiguration = @"
