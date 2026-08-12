@@ -1,0 +1,8 @@
+{
+  "name": "mkls-portable-build-tools",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "rcedit": "5.0.2"
+  }
+}
